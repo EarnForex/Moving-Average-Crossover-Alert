@@ -1,12 +1,11 @@
 #property link          "https://www.earnforex.com/metatrader-indicators/moving-average-crossover-alert/"
-#property version       "1.04"
+#property version       "1.05"
 #property strict
-#property copyright     "EarnForex.com - 2020-2022"
+#property copyright     "EarnForex.com - 2020-2023"
 #property description   "Moving average crossover alert. Supports simple, exponential, smoothed, and linear weighted."
 #property description   " "
 #property description   " "
-#property description   " "
-#property description   "Find More on EarnForex.com"
+#property description   "Find More on www.EarnForex.com"
 #property icon          "\\Files\\EF-Icon-64x64px.ico"
 
 #property indicator_chart_window
@@ -17,9 +16,6 @@
 #property indicator_type2 DRAW_LINE
 #property indicator_label1 "Fast MA"
 #property indicator_label2 "Slow MA"
-
-#include <MQLTA ErrorHandling.mqh>
-#include <MQLTA Utils.mqh>
 
 enum ENUM_TRADE_SIGNAL
 {
@@ -97,29 +93,28 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
 {
-    if ((rates_total <= MASlowPeriod) || (MASlowPeriod <= 0)) return 0;
-    if ((rates_total <= MAFastPeriod) || (MAFastPeriod <= 0)) return 0;
-    if (MAFastPeriod > MASlowPeriod) return 0;
-
-    bool IsNewCandle = CheckIfNewCandle();
-    
-    if (Bars(Symbol(), PERIOD_CURRENT) < (MASlowPeriod + MASlowShift))
+    if (rates_total < MASlowPeriod + MASlowShift)
     {
-        Print("Not Enough Historical Candles");
+        Print("Not enough candles on the chart.");
         return 0;
     }
 
-    int pos = 0, upTo;
-    if ((prev_calculated == 0) || (IsNewCandle))
-    {
-        upTo = BarsToScan - 1;
-    }
-    else
-    {
-        upTo = 0;
-    }
+    bool IsNewCandle = CheckIfNewCandle();
 
-    for (int i = pos; (i <= upTo) && (!IsStopped()); i++)
+    int counted_bars = 0;
+    if (prev_calculated > 0) counted_bars = prev_calculated - 1;
+
+    if (counted_bars < 0) return -1;
+    if (counted_bars > 0) counted_bars--;
+    int limit = rates_total - counted_bars;
+    if (limit > BarsToScan)
+    {
+        limit = BarsToScan;
+        if (rates_total < BarsToScan + MASlowPeriod + MASlowShift) limit = rates_total - (MASlowPeriod + MASlowShift);
+    }
+    if (limit > rates_total - (MASlowPeriod + MASlowShift)) limit = rates_total - (MASlowPeriod + MASlowShift);
+
+    for (int i = limit; (i >= 0) && (!IsStopped()); i--)
     {
         BufferMASlow[i] = iMA(Symbol(), PERIOD_CURRENT, MASlowPeriod, MASlowShift, MASlowMethod, MASlowAppliedPrice, i);
         BufferMAFast[i] = iMA(Symbol(), PERIOD_CURRENT, MAFastPeriod, MAFastShift, MAFastMethod, MAFastAppliedPrice, i);
@@ -127,7 +122,7 @@ int OnCalculate(const int rates_total,
 
     if ((IsNewCandle) || (prev_calculated == 0))
     {
-        if (EnableDrawArrows) DrawArrows();
+        if (EnableDrawArrows) DrawArrows(limit);
     }
 
     if (EnableDrawArrows) DrawArrow(0);
@@ -151,7 +146,7 @@ void OnInitInitialization()
 
 bool OnInitPreChecksPass()
 {
-    if ((MASlowPeriod <= 0) || (MAFastPeriod <= 0) || (MAFastPeriod > MASlowPeriod))
+    if ((MASlowPeriod <= 0) || (MAFastPeriod <= 0) || (MAFastPeriod >= MASlowPeriod))
     {
         Print("Wrong input parameter");
         return false;
@@ -231,14 +226,9 @@ void NotifyHit()
     LastNotificationDirection = Signal;
 }
 
-void DrawArrows()
+void DrawArrows(int limit)
 {
-    RemoveArrows();
-    if(!EnableDrawArrows || BarsToScan == 0) return;
-    if ((!EnableDrawArrows) || (BarsToScan == 0)) return;
-    int MaxBars = Bars(Symbol(), PERIOD_CURRENT);
-    if (MaxBars > BarsToScan) MaxBars = BarsToScan;
-    for (int i = MaxBars - 2; i >= 1; i--)
+    for (int i = limit - 1; i >= 1; i--)
     {
         DrawArrow(i);
     }
@@ -252,11 +242,6 @@ void RemoveArrows()
 void DrawArrow(int i)
 {
     RemoveArrowCurr();
-    if (!EnableDrawArrows)
-    {
-        RemoveArrows();
-        return;
-    }
     ENUM_TRADE_SIGNAL Signal = IsSignal(i);
     if (Signal == SIGNAL_NEUTRAL) return;
     datetime ArrowDate = iTime(Symbol(), 0, i);
@@ -296,7 +281,7 @@ void DrawArrow(int i)
 
 void RemoveArrowCurr()
 {
-    datetime ArrowDate = iTime(Symbol(), 0, Shift);
+    datetime ArrowDate = iTime(Symbol(), 0, 0);
     string ArrowName = IndicatorName + "-ARWS-" + IntegerToString(ArrowDate);
     ObjectDelete(0, ArrowName);
 }

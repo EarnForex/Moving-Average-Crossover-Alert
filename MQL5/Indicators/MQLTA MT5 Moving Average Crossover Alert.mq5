@@ -1,12 +1,11 @@
 #property link          "https://www.earnforex.com/metatrader-indicators/moving-average-crossover-alert/"
-#property version       "1.04"
+#property version       "1.05"
 #property strict
-#property copyright     "EarnForex.com - 2020-2022"
+#property copyright     "EarnForex.com - 2020-2023"
 #property description   "Moving average crossover alert. Supports simple, exponential, smoothed, linear weighted, and TEMA."
 #property description   " "
 #property description   " "
-#property description   " "
-#property description   "Find More on EarnForex.com"
+#property description   "Find More on www.EarnForex.com"
 #property icon          "\\Files\\EF-Icon-64x64px.ico"
 
 #property indicator_chart_window
@@ -112,38 +111,38 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
 {
-    if ((rates_total <= MASlowPeriod) || (MASlowPeriod <= 0)) return 0;
-    if ((rates_total <= MAFastPeriod) || (MAFastPeriod <= 0)) return 0;
-    if (MAFastPeriod > MASlowPeriod) return 0;
-
-    bool IsNewCandle = CheckIfNewCandle();
-    
-    if (Bars(Symbol(), PERIOD_CURRENT) < (MASlowPeriod + MASlowShift))
+    if (rates_total < MASlowPeriod + MASlowShift)
     {
-        Print("Not Enough Historical Candles");
+        Print("Not enough candles on the chart.");
         return 0;
     }
 
-    int pos = 0, upTo;
-    if ((prev_calculated == 0) || (IsNewCandle))
-    {
-        upTo = BarsToScan - 1;
-    }
-    else
-    {
-        upTo = 0;
-    }
+    bool IsNewCandle = CheckIfNewCandle();
 
-    if (IsStopped()) return 0;
-    
-    if ((CopyBuffer(BufferMAFastHandle, 0, -MAFastShift, upTo + 1, BufferMAFast) <= 0) ||
-        (CopyBuffer(BufferMASlowHandle, 0, -MASlowShift, upTo + 1, BufferMASlow) <= 0))
+    int counted_bars = 0;
+    if (prev_calculated > 0) counted_bars = prev_calculated - 1;
+
+    if (counted_bars < 0) return -1;
+    if (counted_bars > 0) counted_bars--;
+    int limit = rates_total - counted_bars;
+    if (limit > BarsToScan)
+    {
+        limit = BarsToScan;
+        if (rates_total < BarsToScan + MASlowPeriod + MASlowShift) limit = rates_total - (MASlowPeriod + MASlowShift);
+    }
+    if (limit > rates_total - (MASlowPeriod + MASlowShift)) limit = rates_total - (MASlowPeriod + MASlowShift);
+
+    if ((CopyBuffer(BufferMAFastHandle, 0, -MAFastShift, limit, BufferMAFast) <= 0) ||
+        (CopyBuffer(BufferMASlowHandle, 0, -MASlowShift, limit, BufferMASlow) <= 0))
     {
         Print("Failed to create the indicator! Error: ", GetLastErrorText(GetLastError()), " - ", GetLastError());
         return 0;
     }
 
-    for (int i = pos; (i <= upTo) && (!IsStopped()); i++)
+    if (IsStopped()) return 0;
+    
+
+    for (int i = limit - 1; (i >= 0) && (!IsStopped()); i--)
     {
         Open[i] = iOpen(Symbol(), PERIOD_CURRENT, i);
         Low[i] = iLow(Symbol(), PERIOD_CURRENT, i);
@@ -154,7 +153,7 @@ int OnCalculate(const int rates_total,
 
     if ((IsNewCandle) || (prev_calculated == 0))
     {
-        if (EnableDrawArrows) DrawArrows();
+        if (EnableDrawArrows) DrawArrows(limit);
     }
 
     if (EnableDrawArrows) DrawArrow(0);
@@ -289,13 +288,9 @@ void NotifyHit()
     LastNotificationDirection = Signal;
 }
 
-void DrawArrows()
+void DrawArrows(int limit)
 {
-    RemoveArrows();
-    if ((!EnableDrawArrows) || (BarsToScan == 0)) return;
-    int MaxBars = Bars(Symbol(), PERIOD_CURRENT);
-    if (MaxBars > BarsToScan) MaxBars = BarsToScan;
-    for (int i = MaxBars - 2; i >= 1; i--)
+    for (int i = limit - 1; i >= 1; i--)
     {
         DrawArrow(i);
     }
@@ -309,11 +304,6 @@ void RemoveArrows()
 void DrawArrow(int i)
 {
     RemoveArrowCurr();
-    if (!EnableDrawArrows)
-    {
-        RemoveArrows();
-        return;
-    }
     ENUM_TRADE_SIGNAL Signal = IsSignal(i);
     if (Signal == SIGNAL_NEUTRAL) return;
     datetime ArrowDate = iTime(Symbol(), 0, i);
@@ -353,7 +343,7 @@ void DrawArrow(int i)
 
 void RemoveArrowCurr()
 {
-    datetime ArrowDate = iTime(Symbol(), 0, Shift);
+    datetime ArrowDate = iTime(Symbol(), 0, 0);
     string ArrowName = IndicatorName + "-ARWS-" + IntegerToString(ArrowDate);
     ObjectDelete(0, ArrowName);
 }
