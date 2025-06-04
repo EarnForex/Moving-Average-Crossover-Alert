@@ -9,6 +9,6 @@ It is a non-repainting indicator.
 ![Moving Average Crossover Alert shows buy and sell signals on this EUR/USD chart example](https://github.com/EarnForex/Moving-Average-Crossover-Alert/blob/main/README_Images/moving-average-crossover-alert-indicator-mt5.png)
 
 A detailed description of the indicator can be found here:
-https://www.earnforex.com/metatrader-indicators/moving-average-crossover-alert/
+https://www.earnforex.com/indicators/moving-average-crossover-alert/
 
 Any contributions to the code are welcome!
